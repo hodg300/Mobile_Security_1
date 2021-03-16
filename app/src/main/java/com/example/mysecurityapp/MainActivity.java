@@ -9,6 +9,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -21,11 +25,14 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import java.util.Objects;
 
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
@@ -34,6 +41,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private EditText name_editText;
     private LocationManager locationManager;
 
+    private SensorManager mSensorManager;
+    private float mAccel;
+    private float mAccelCurrent;
+    private float mAccelLast;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,6 +53,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         checkPermission();
         init();
+        detectShaking();
 
         main_BTN_login.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -74,6 +87,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         getLocation();
     }
 
+    private void detectShaking() {
+        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        Objects.requireNonNull(mSensorManager).registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL);
+        mAccel = 10f;
+        mAccelCurrent = SensorManager.GRAVITY_EARTH;
+        mAccelLast = SensorManager.GRAVITY_EARTH;
+    }
 
 
     // Checks the count of free RAM memory available on the phone
@@ -131,6 +152,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         return cur.moveToFirst();
     }
 
+
     private void openNewActivity() {
         Intent intent = new Intent(MainActivity.this, SuccessActivity.class);
         startActivity(intent);
@@ -146,6 +168,25 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     }
 
+    //Check if the device is shaking
+    private final SensorEventListener mSensorListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            float x = event.values[0];
+            float y = event.values[1];
+            float z = event.values[2];
+            mAccelLast = mAccelCurrent;
+            mAccelCurrent = (float) Math.sqrt((double) (x * x + y * y + z * z));
+            float delta = mAccelCurrent - mAccelLast;
+            mAccel = mAccel * 0.9f + delta;
+            if (mAccel > 12) {
+                openNewActivity();
+            }
+        }
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+    };
 
 
     private void checkPermission() {
@@ -184,12 +225,18 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     protected void onPause() {
         super.onPause();
         locationManager.removeUpdates(this);
+        mSensorManager.unregisterListener(mSensorListener);
         Log.i("TAG", "onPause, done");
     }
+
 
     @Override
     protected void onResume() {
         super.onResume();
         getLocation();
+        mSensorManager.registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL);
     }
+
+
 }
