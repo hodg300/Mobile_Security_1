@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -28,6 +29,8 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -37,6 +40,9 @@ import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
 
+    private static final int PERMISSION_REQUEST_CODE = 123;
+    private static final int MANUALLY_CONTACTS_PERMISSION_REQUEST_CODE = 124;
+
     private Button main_BTN_login;
     private EditText name_editText;
     private LocationManager locationManager;
@@ -45,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private float mAccel;
     private float mAccelCurrent;
     private float mAccelLast;
+    private boolean isPermission = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +68,91 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 checkCondition();
             }
         });
+    }
+
+    
+
+    private void checkPermission() {
+        boolean isGranted = checkForPermission();
+
+        if (!isGranted) {
+            requestPermission();
+            return;
+        }
+        isPermission = true;
+    }
+
+    private boolean checkForPermission() {
+        if ( ContextCompat.checkSelfPermission( this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+        return false;
+    }
+    private void requestPermission() {
+        ActivityCompat.requestPermissions(MainActivity.this,
+                new String[]{Manifest.permission.READ_CONTACTS, Manifest.permission.ACCESS_FINE_LOCATION},
+                PERMISSION_REQUEST_CODE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == MANUALLY_CONTACTS_PERMISSION_REQUEST_CODE) {
+            checkPermission();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case PERMISSION_REQUEST_CODE: {
+                for (int i = 0; i < grantResults.length; i++) {
+                    if (grantResults.length == 0 ||
+                            grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissionWithRationaleCheck();
+                        return;
+                    }
+                }
+                checkCondition();
+            }
+        }
+    }
+
+
+    private void requestPermissionWithRationaleCheck() {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.READ_CONTACTS)
+        || ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+            Log.d("pttt", "shouldShowRequestPermissionRationale = true");
+            // Show user description for what we need the permission
+            requestPermission();
+        } else {
+            Log.d("pttt", "shouldShowRequestPermissionRationale = false");
+            openPermissionSettingDialog();
+        }
+    }
+
+    private void openPermissionSettingDialog() {
+        String message = "Setting screen if user have permanently disable the permission by clicking Don't ask again checkbox.";
+        AlertDialog alertDialog =
+                new AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton(getString(android.R.string.ok),
+                                new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        Intent intent = new Intent();
+                                        intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                        Uri uri = Uri.fromParts("package", getPackageName(), null);
+                                        intent.setData(uri);
+                                        startActivityForResult(intent, MANUALLY_CONTACTS_PERMISSION_REQUEST_CODE);
+                                        dialog.cancel();
+                                    }
+                                }).show();
+        alertDialog.setCanceledOnTouchOutside(true);
     }
 
     private void init() {
@@ -86,6 +178,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         getLocation();
     }
+
 
     private void detectShaking() {
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
@@ -140,7 +233,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     // Checks if the phone number appears in the contacts
     private boolean checkNumber(String phoneNumber) {
-        
+
         if(phoneNumber.isEmpty()) {
             return false;
         }
@@ -189,16 +282,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     };
 
 
-    private void checkPermission() {
-        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
-                         ) {
-            ActivityCompat.requestPermissions(MainActivity.this, new String[]{
-                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_CONTACTS
-            }, 100);
-        }
-    }
+
 
     @Override
     public void onLocationChanged(@NonNull Location location) {
@@ -224,8 +308,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @Override
     protected void onPause() {
         super.onPause();
-        locationManager.removeUpdates(this);
-        mSensorManager.unregisterListener(mSensorListener);
+        if(isPermission){
+            locationManager.removeUpdates(this);
+            mSensorManager.unregisterListener(mSensorListener);
+        }
+
         Log.i("TAG", "onPause, done");
     }
 
@@ -233,9 +320,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @Override
     protected void onResume() {
         super.onResume();
-        getLocation();
-        mSensorManager.registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-                SensorManager.SENSOR_DELAY_NORMAL);
+        if(isPermission) {
+            getLocation();
+            mSensorManager.registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                    SensorManager.SENSOR_DELAY_NORMAL);
+        }
     }
 
 
