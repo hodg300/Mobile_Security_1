@@ -26,8 +26,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -70,7 +68,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         });
     }
 
-    
+
 
     private void checkPermission() {
         boolean isGranted = checkForPermission();
@@ -195,7 +193,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         ActivityManager activityManager = (ActivityManager) getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
         activityManager.getMemoryInfo(memory);
-        System.out.println(memory.availMem / 1048576L);
 
         return memory.availMem / 1048576L;
     }
@@ -214,7 +211,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         try {
             curBrightnessValue = Settings.System.getInt(
                     getContentResolver(), Settings.System.SCREEN_BRIGHTNESS);
-            System.out.println(curBrightnessValue);
         } catch (Settings.SettingNotFoundException e) {
             e.printStackTrace();
         }
@@ -227,7 +223,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         ContentResolver cr = getContentResolver();
         Cursor cursor = cr.query(ContactsContract.Contacts.CONTENT_URI,
                 null, null, null, null);
-        System.out.println(cursor.getCount());
         return cursor.getCount();
     }
 
@@ -288,7 +283,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     public void onLocationChanged(@NonNull Location location) {
         double latitude = location.getLatitude();
         double longitude = location.getLongitude();
-        System.out.println(latitude + "  " + longitude );
 
         if(latitude == 32.0845428 && longitude == 34.8957159) {
             openNewActivity();
